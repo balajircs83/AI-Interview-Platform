@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interview Platform</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 50%, #000000 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            color: #9ca3af;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .card h3::before {
+            content: '📹';
+            margin-right: 0.5rem;
+            font-size: 1.8rem;
+        }
+
+        .card:nth-child(2) h3::before {
+            content: '🎤';
+        }
+
+        .camera-preview {
+            background: #111827;
+            border: 2px dashed #4b5563;
+            border-radius: 0.5rem;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+        }
+
+        .camera-preview div {
+            text-align: center;
+        }
+
+        .camera-preview .icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .button {
+            background: linear-gradient(45deg, #ef4444, #dc2626);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        .button.secondary {
+            background: linear-gradient(45deg, #3b82f6, #2563eb);
+        }
+
+        .button.success {
+            background: linear-gradient(45deg, #10b981, #059669);
+        }
+
+        .button:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .recording {
+            background: linear-gradient(45deg, #dc2626, #b91c1c);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .equalizer {
+            display: flex;
+            align-items: end;
+            justify-content: center;
+            height: 60px;
+            margin: 1rem 0;
+        }
+
+        .bar {
+            width: 8px;
+            background: linear-gradient(to top, #3b82f6, #8b5cf6);
+            border-radius: 4px;
+            margin: 0 2px;
+            transition: height 0.1s;
+            min-height: 4px;
+        }
+
+        .timer {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #ef4444;
+            text-align: center;
+            margin: 0.5rem 0;
+        }
+
+        .status.recording {
+            border-color: #dc2626;
+            background: rgba(220, 38, 38, 0.1);
+        }
+
+        .status {
+            padding: 1rem;
+            background: #111827;
+            border: 1px solid #374151;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #374151;
+            color: #6b7280;
+        }
+
+        .interview-state {
+            transition: all 0.3s ease;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .review-section {
+            background: #111827;
+            border: 1px solid #374151;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+
+        .review-content {
+            background: #1f2937;
+            border: 1px solid #4b5563;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .review-title {
+            color: #3b82f6;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .transcript-display {
+            background: #111827;
+            border: 1px solid #374151;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            min-height: 120px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #e5e7eb;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .transcript-display.listening {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .transcript-display.speaking {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .transcript-display.error {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.05);
+            color: #fca5a5;
+        }
+
+        .transcript-interim {
+            color: #9ca3af;
+            font-style: italic;
+        }
+
+        .transcript-final {
+            color: #e5e7eb;
+        }
+
+        .recording-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 1.5s infinite;
+        }
+
+        .speech-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.5rem;
+            background: #374151;
+            border-radius: 0.5rem;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .speech-status-left {
+            color: #9ca3af;
+        }
+
+        .speech-status-right {
+            color: #6b7280;
+        }
+
+        .question-display {
+            background: #111827;
+            border: 1px solid #374151;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .question-display h4 {
+            color: #3b82f6;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .question-display p {
+            color: #e5e7eb;
+            font-size: 1.1rem;
+            line-height: 1.5;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 AI Interview Platform</h1>
+            <p>Professional AI-powered interview simulation with real-time speech recognition</p>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Live Video Feed</h3>
+                <div class="camera-preview" id="cameraPreview">
+                    <div>
+                        <div class="icon">📷</div>
+                        <p>Requesting camera access...</p>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">Please allow camera and microphone permissions
+                        </p>
+                    </div>
+                </div>
+                <div class="status">
+                    <p id="cameraStatus">Status: Initializing...</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Interview Session</h3>
+
+                <!-- Welcome State -->
+                <div id="welcomeState" class="interview-state">
+                    <div class="status">
+                        <p>Ready to begin your AI interview simulation</p>
+                        <p style="font-size: 0.9rem; color: #9ca3af; margin-top: 0.5rem;">The AI will ask you questions
+                            and evaluate your responses in real-time</p>
+                    </div>
+                    <button id="startInterviewBtn" class="button success" disabled style="opacity: 0.5;">🚀 Start
+                        Interview</button>
+                </div>
+
+                <!-- Question State -->
+                <div id="questionState" class="interview-state" style="display: none;">
+                    <div class="status">
+                        <p id="aiStatus">AI is speaking the question...</p>
+                    </div>
+                    <div class="question-display">
+                        <h4>Interview Question:</h4>
+                        <p id="questionText">Tell me about yourself and your background in software development.</p>
+                    </div>
+                </div>
+
+                <!-- Recording State -->
+                <div id="recordingState" class="interview-state" style="display: none;">
+                    <div class="status recording">
+                        <p>🔴 Recording your answer... Speak clearly!</p>
+                        <div class="timer"
+                            style="font-size: 1.5rem; color: #ef4444; font-weight: bold; text-align: center; margin: 1rem 0;">
+                            <span class="recording-indicator"></span>
+                            <span id="timerDisplay">30s</span>
+                        </div>
+                    </div>
+
+                    <div
+                        style="background: rgba(59, 130, 246, 0.1); border: 1px solid #3b82f6; border-radius: 0.5rem; padding: 1rem; margin: 1rem 0;">
+                        <h4 style="color: #3b82f6; margin-bottom: 0.5rem; font-size: 1rem;">🎤 Live Speech Recognition:
+                        </h4>
+                        <div id="liveTranscript" class="transcript-display listening">
+                            Listening for your speech...
+                        </div>
+                        <div class="speech-status">
+                            <span class="speech-status-left" id="speechStatus">Initializing...</span>
+                            <span class="speech-status-right" id="charCount">0 characters</span>
+                        </div>
+                    </div>
+
+                    <div class="equalizer" id="equalizer"></div>
+                    <button id="stopRecordingBtn" class="button recording">⏹️ Stop Recording</button>
+                </div>
+
+                <!-- Review State -->
+                <div id="reviewState" class="interview-state" style="display: none;">
+                    <div class="status" style="background: rgba(16, 185, 129, 0.1); border-color: #10b981;">
+                        <p>✅ Recording complete! Review your answer</p>
+                    </div>
+
+                    <div
+                        style="background: #111827; border: 1px solid #374151; border-radius: 0.5rem; padding: 1rem; margin: 1rem 0;">
+                        <h4 style="color: #10b981; margin-bottom: 0.5rem;">Your Answer:</h4>
+                        <div id="finalTranscript" class="transcript-display">
+                            No speech was detected...
+                        </div>
+                    </div>
+
+                    <button id="playAnswerBtn" class="button secondary">🔊 Play My Answer</button>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                        <button id="submitAnswerBtn" class="button success" style="flex: 1;">✅ Submit Answer</button>
+                        <button id="reRecordBtn" class="button"
+                            style="flex: 1; background: linear-gradient(45deg, #f59e0b, #d97706);">🔄 Re-record</button>
+                    </div>
+                </div>
+
+                <!-- Evaluating State -->
+                <div id="evaluatingState" class="interview-state" style="display: none;">
+                    <div class="status">
+                        <p>🤖 AI is evaluating your response...</p>
+                        <div style="text-align: center; padding: 2rem;">
+                            <div
+                                style="width: 60px; height: 60px; border: 4px solid #3b82f6; border-top: 4px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;">
+                            </div>
+                            <p style="margin-top: 1rem; color: #9ca3af;">Analyzing your answer...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results State -->
+                <div id="resultsState" class="interview-state" style="display: none;">
+                    <div class="status" style="background: rgba(16, 185, 129, 0.1); border-color: #10b981;">
+                        <p>🎉 Evaluation complete!</p>
+                    </div>
+                    <div id="evaluationResults"
+                        style="background: #111827; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #374151; margin: 1rem 0;">
+                        <div style="text-align: center; margin-bottom: 1rem;">
+                            <div id="overallScore" style="font-size: 2rem; font-weight: bold; color: #10b981;">4.2/5
+                            </div>
+                            <p style="color: #9ca3af;">Overall Score</p>
+                        </div>
+                        <div id="feedback" style="margin-bottom: 1rem;">
+                            <h4 style="color: #3b82f6; margin-bottom: 0.5rem;">AI Feedback:</h4>
+                            <p style="color: #e5e7eb; line-height: 1.5;" id="feedbackText">Your response demonstrates
+                                good communication skills...</p>
+                        </div>
+                        <div id="strengths" style="margin-bottom: 1rem;">
+                            <h4 style="color: #10b981; margin-bottom: 0.5rem;">Strengths:</h4>
+                            <ul style="color: #e5e7eb; margin: 0; padding-left: 1.5rem;" id="strengthsList"></ul>
+                        </div>
+                        <div id="improvements">
+                            <h4 style="color: #f59e0b; margin-bottom: 0.5rem;">Areas for Improvement:</h4>
+                            <ul style="color: #e5e7eb; margin: 0; padding-left: 1.5rem;" id="improvementsList"></ul>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                        <button id="nextQuestionBtn" class="button success" style="flex: 1;">➡️ Next Question</button>
+                        <button id="endInterviewBtn" class="button secondary" style="flex: 1;">🏁 End Interview</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
