@@ -20,6 +20,13 @@ let finalTranscript = '';
 let interimTranscript = '';
 let mediaPermissionsGranted = false;
 let audioStream = null; // Separate audio stream for recording
+let cameraEnabled = false; // Track if camera is enabled (disabled by default)
+
+// Database tracking variables
+let currentSessionId = null;
+let currentUserId = null;
+let questionStartTime = null;
+let recordingStartTime = null;
 
 // API configuration - now points to our backend
 const API_BASE_URL = window.location.origin;
@@ -216,23 +223,7 @@ async function initCameraAndMicrophone() {
             throw new Error('MediaRecorder not supported in this browser');
         }
 
-        // Request both camera and microphone permissions upfront
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 640 },
-                height: { ideal: 480 },
-                facingMode: 'user'
-            },
-            audio: {
-                sampleRate: 44100,
-                channelCount: 1,
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }
-        });
-
-        // Create a separate audio-only stream for recording
+        // First, get audio-only stream (mandatory)
         audioStream = await navigator.mediaDevices.getUserMedia({
             audio: {
                 sampleRate: 44100,
@@ -243,21 +234,19 @@ async function initCameraAndMicrophone() {
             }
         });
 
-        // Set up video preview
+        // Camera is disabled by default, but we'll set up the UI accordingly
+        cameraEnabled = false;
+
+        // Set up video preview to show camera is disabled by default
         const cameraPreview = document.getElementById('cameraPreview');
         if (cameraPreview) {
-            const video = document.createElement('video');
-            video.srcObject = stream;
-            video.autoplay = true;
-            video.playsInline = true;
-            video.muted = true;
-            video.style.width = '100%';
-            video.style.height = '100%';
-            video.style.objectFit = 'cover';
-            video.style.borderRadius = '0.5rem';
-
-            cameraPreview.innerHTML = '';
-            cameraPreview.appendChild(video);
+            cameraPreview.innerHTML = `
+                <div style="text-align: center; color: #9ca3af;">
+                    <div style="font-size: 3rem; margin-bottom: 0.5rem;">📷</div>
+                    <p>Camera disabled by default</p>
+                    <p style="font-size: 0.8rem;">Enable camera using the toggle below</p>
+                </div>
+            `;
         }
 
         // Set up audio analysis for equalizer using audio stream
@@ -274,13 +263,14 @@ async function initCameraAndMicrophone() {
         const startBtn = document.getElementById('startInterviewBtn');
 
         if (cameraStatus) {
-            cameraStatus.textContent = 'Status: Camera and microphone ready ✅';
-            cameraStatus.style.color = '#10b981';
+            cameraStatus.textContent = 'Status: Microphone ready, camera disabled ✅';
+            cameraStatus.style.color = '#f59e0b';
         }
 
         if (startBtn) {
             startBtn.disabled = false;
             startBtn.style.opacity = '1';
+            startBtn.textContent = '🎙️ Start Interview (Audio Only)';
         }
 
         mediaPermissionsGranted = true;
@@ -288,7 +278,7 @@ async function initCameraAndMicrophone() {
         // Initialize speech recognition early to avoid multiple permission prompts
         initSpeechRecognition();
 
-        console.log('Camera and microphone initialized successfully');
+        console.log('Media devices initialized successfully (camera disabled by default)');
         return true;
 
     } catch (error) {
@@ -301,15 +291,15 @@ async function initCameraAndMicrophone() {
             cameraPreview.innerHTML = `
                 <div style="text-align: center; color: #ef4444;">
                     <div style="font-size: 3rem; margin-bottom: 0.5rem;">❌</div>
-                    <p>Camera/Microphone access denied</p>
-                    <p style="font-size: 0.8rem;">Please allow permissions and refresh</p>
+                    <p>Microphone access denied</p>
+                    <p style="font-size: 0.8rem;">Microphone is required for the interview</p>
                 </div>
             `;
         }
 
         const cameraStatus = document.getElementById('cameraStatus');
         if (cameraStatus) {
-            cameraStatus.textContent = 'Status: Permission denied ❌';
+            cameraStatus.textContent = 'Status: Microphone permission denied ❌';
             cameraStatus.style.color = '#ef4444';
         }
 
@@ -317,7 +307,7 @@ async function initCameraAndMicrophone() {
         if (startBtn) {
             startBtn.disabled = true;
             startBtn.style.opacity = '0.5';
-            startBtn.textContent = '❌ Permissions Required';
+            startBtn.textContent = '❌ Microphone Required';
         }
 
         mediaPermissionsGranted = false;
@@ -334,25 +324,55 @@ async function startInterview() {
         return;
     }
 
-    // Reset variables
-    currentQuestionIndex = 0;
-    responseText = '';
-    finalTranscript = '';
-    interimTranscript = '';
+    try {
+        // Save user info and start interview session in database
+        saveUserInfo();
+        
+        const response = await fetch(`${API_BASE_URL}/api/interview/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userEmail: localStorage.getItem('userEmail') || null,
+                userName: localStorage.getItem('userName') || 'Anonymous User'
+            })
+        });
 
-    // Show question state
-    showState('questionState');
+        if (!response.ok) {
+            throw new Error('Failed to start interview session');
+        }
 
-    // Display current question
-    displayCurrentQuestion();
+        const sessionData = await response.json();
+        currentSessionId = sessionData.sessionId;
+        currentUserId = sessionData.userId;
+        
+        console.log('Interview session started:', sessionData);
 
-    // AI speaks the question using Text-to-Speech
-    speakQuestion(() => {
-        // Start recording after AI finishes speaking
-        setTimeout(startRecording, 1000);
-    });
+        // Reset variables
+        currentQuestionIndex = 0;
+        responseText = '';
+        finalTranscript = '';
+        interimTranscript = '';
 
-    interviewStarted = true;
+        // Show question state
+        showState('questionState');
+
+        // Display current question
+        displayCurrentQuestion();
+        questionStartTime = Date.now();
+
+        // AI speaks the question using Text-to-Speech
+        speakQuestion(() => {
+            // Start recording after AI finishes speaking
+            setTimeout(startRecording, 1000);
+        });
+
+        interviewStarted = true;
+    } catch (error) {
+        console.error('Error starting interview:', error);
+        alert('Failed to start interview session. Please try again.');
+    }
 }
 
 // Display current question
@@ -432,12 +452,13 @@ async function startRecording() {
         console.log('Starting recording...');
 
         if (!mediaPermissionsGranted || !audioStream) {
-            alert('Camera and microphone permissions are required to start recording.');
+            alert('Microphone permission is required to start recording.');
             return;
         }
 
         // Show recording state
         showState('recordingState');
+        recordingStartTime = Date.now();
 
         // Reset speech recognition variables
         responseText = '';
@@ -682,11 +703,21 @@ async function submitAnswer() {
 
     const currentQuestion = interviewQuestions[currentQuestionIndex];
     const userAnswer = responseText && responseText.trim().length > 0 ? responseText : 'No speech was detected in the response.';
+    
+    // Calculate response metrics
+    const responseTime = questionStartTime ? Math.floor((Date.now() - questionStartTime) / 1000) : 0;
+    const audioDuration = recordedBlob ? Math.floor(recordedBlob.size / 1000) : 0; // Rough estimate
 
     showState('evaluatingState');
 
     try {
-        const evaluation = await evaluateWithGroqAPI(currentQuestion, userAnswer);
+        const evaluation = await evaluateWithGroqAPI(currentQuestion, userAnswer, {
+            sessionId: currentSessionId,
+            questionIndex: currentQuestionIndex,
+            transcriptText: responseText,
+            audioDuration: audioDuration,
+            responseTime: responseTime
+        });
         showEvaluationResults(evaluation);
     } catch (error) {
         console.error('Evaluation failed:', error);
@@ -697,7 +728,7 @@ async function submitAnswer() {
 }
 
 // Evaluate answer using Groq API
-async function evaluateWithGroqAPI(question, answer) {
+async function evaluateWithGroqAPI(question, answer, metadata = {}) {
     const response = await fetch(EVALUATE_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -705,7 +736,8 @@ async function evaluateWithGroqAPI(question, answer) {
         },
         body: JSON.stringify({
             question: question,
-            answer: answer
+            answer: answer,
+            ...metadata
         })
     });
 
@@ -808,8 +840,8 @@ function nextQuestion() {
     currentQuestionIndex++;
 
     if (currentQuestionIndex >= interviewQuestions.length) {
-        alert('Interview completed! Thank you for participating. Your responses have been evaluated.');
-        location.reload();
+        // Complete the interview session
+        completeInterview();
         return;
     }
 
@@ -821,17 +853,82 @@ function nextQuestion() {
     // Start next question
     showState('questionState');
     displayCurrentQuestion();
+    questionStartTime = Date.now();
     speakQuestion(() => {
         setTimeout(startRecording, 1000);
     });
+}
+
+// Complete interview and save to database
+async function completeInterview() {
+    try {
+        if (currentSessionId) {
+            const response = await fetch(`${API_BASE_URL}/api/interview/complete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    sessionId: currentSessionId
+                })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Interview completed successfully:', result);
+                
+                // Show completion message with performance summary
+                alert(`Interview completed! Thank you for participating.\n\nYour overall score: ${result.session.overall_score?.toFixed(1) || 'N/A'}/5.0\nQuestions answered: ${result.session.questions_answered}/${result.session.total_questions}`);
+            } else {
+                console.error('Failed to complete interview session');
+            }
+        }
+        
+        // Reset session variables
+        currentSessionId = null;
+        currentUserId = null;
+        location.reload();
+    } catch (error) {
+        console.error('Error completing interview:', error);
+        alert('Interview completed! Thank you for participating.');
+        location.reload();
+    }
 }
 
 // End interview
 function endInterview() {
     const confirmed = confirm('Are you sure you want to end the interview?');
     if (confirmed) {
-        alert('Interview ended. Thank you for your participation!');
-        location.reload();
+        completeInterview();
+    }
+}
+
+// Save user information to localStorage
+function saveUserInfo() {
+    const userName = document.getElementById('userName');
+    const userEmail = document.getElementById('userEmail');
+    
+    if (userName && userName.value.trim()) {
+        localStorage.setItem('userName', userName.value.trim());
+    }
+    if (userEmail && userEmail.value.trim()) {
+        localStorage.setItem('userEmail', userEmail.value.trim());
+    }
+}
+
+// Load user information from localStorage
+function loadUserInfo() {
+    const savedName = localStorage.getItem('userName');
+    const savedEmail = localStorage.getItem('userEmail');
+    
+    const userName = document.getElementById('userName');
+    const userEmail = document.getElementById('userEmail');
+    
+    if (savedName && userName) {
+        userName.value = savedName;
+    }
+    if (savedEmail && userEmail) {
+        userEmail.value = savedEmail;
     }
 }
 
@@ -864,9 +961,103 @@ function showState(stateName) {
     });
 }
 
+// Toggle camera on/off
+async function toggleCamera(enable) {
+    try {
+        if (enable && !cameraEnabled) {
+            // Try to enable camera
+            const videoStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                }
+            });
+            
+            stream = videoStream;
+            cameraEnabled = true;
+            
+            // Set up video preview
+            const cameraPreview = document.getElementById('cameraPreview');
+            if (cameraPreview) {
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.autoplay = true;
+                video.playsInline = true;
+                video.muted = true;
+                video.style.width = '100%';
+                video.style.height = '100%';
+                video.style.objectFit = 'cover';
+                video.style.borderRadius = '0.5rem';
+
+                cameraPreview.innerHTML = '';
+                cameraPreview.appendChild(video);
+            }
+            
+            const cameraStatus = document.getElementById('cameraStatus');
+            if (cameraStatus) {
+                cameraStatus.textContent = 'Status: Camera and microphone ready ✅';
+                cameraStatus.style.color = '#10b981';
+            }
+            
+            const startBtn = document.getElementById('startInterviewBtn');
+            if (startBtn) {
+                startBtn.textContent = '🚀 Start Interview';
+            }
+            
+            console.log('Camera enabled');
+        } else if (!enable && cameraEnabled) {
+            // Disable camera
+            if (stream) {
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                stream = null;
+            }
+            cameraEnabled = false;
+            
+            // Update UI
+            const cameraPreview = document.getElementById('cameraPreview');
+            if (cameraPreview) {
+                cameraPreview.innerHTML = `
+                    <div style="text-align: center; color: #9ca3af;">
+                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">📷</div>
+                        <p>Camera disabled</p>
+                        <p style="font-size: 0.8rem;">Audio recording will work without camera</p>
+                    </div>
+                `;
+            }
+            
+            const cameraStatus = document.getElementById('cameraStatus');
+            if (cameraStatus) {
+                cameraStatus.textContent = 'Status: Microphone ready, camera disabled ✅';
+                cameraStatus.style.color = '#f59e0b';
+            }
+            
+            const startBtn = document.getElementById('startInterviewBtn');
+            if (startBtn) {
+                startBtn.textContent = '🎙️ Start Interview (Audio Only)';
+            }
+            
+            console.log('Camera disabled');
+        }
+    } catch (error) {
+        console.error('Error toggling camera:', error);
+        // Revert toggle state
+        const cameraToggle = document.getElementById('cameraToggle');
+        if (cameraToggle) {
+            cameraToggle.checked = !enable;
+        }
+        
+        alert('Failed to ' + (enable ? 'enable' : 'disable') + ' camera: ' + error.message);
+    }
+}
+
 // Initialize application
 document.addEventListener('DOMContentLoaded', function () {
     console.log('AI Interview Platform initialized');
+
+    // Load saved user info
+    loadUserInfo();
 
     // Initialize camera and microphone
     initCameraAndMicrophone();
@@ -886,6 +1077,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const reRecordBtn = document.getElementById('reRecordBtn');
     const nextBtn = document.getElementById('nextQuestionBtn');
     const endBtn = document.getElementById('endInterviewBtn');
+    const userName = document.getElementById('userName');
+    const userEmail = document.getElementById('userEmail');
+    const cameraToggle = document.getElementById('cameraToggle');
 
     if (startBtn) startBtn.addEventListener('click', startInterview);
     if (stopBtn) stopBtn.addEventListener('click', stopRecording);
@@ -894,6 +1088,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (reRecordBtn) reRecordBtn.addEventListener('click', reRecord);
     if (nextBtn) nextBtn.addEventListener('click', nextQuestion);
     if (endBtn) endBtn.addEventListener('click', endInterview);
+    if (cameraToggle) cameraToggle.addEventListener('change', (e) => toggleCamera(e.target.checked));
+
+    // Save user info when fields change
+    if (userName) userName.addEventListener('change', saveUserInfo);
+    if (userEmail) userEmail.addEventListener('change', saveUserInfo);
 
     console.log('Event listeners bound successfully');
 });

@@ -9,6 +9,9 @@ if (!global.fetch) {
     global.fetch = require('node-fetch');
 }
 
+// Import database service
+const DatabaseService = require('./services/database');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -89,9 +92,59 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
+// Start a new interview session
+app.post('/api/interview/start', async (req, res) => {
+    try {
+        const { userEmail, userName } = req.body;
+        
+        // Create or get user
+        const userResult = await DatabaseService.createOrGetUser({
+            email: userEmail || `anonymous_${Date.now()}@temp.com`,
+            name: userName || 'Anonymous User'
+        });
+
+        if (!userResult.success) {
+            return res.status(500).json({ error: 'Failed to create user', details: userResult.error });
+        }
+
+        // Create interview session
+        const sessionResult = await DatabaseService.createInterviewSession(
+            userResult.data.id,
+            { 
+                browser: req.get('User-Agent'),
+                ip: req.ip,
+                startTime: new Date().toISOString()
+            }
+        );
+
+        if (!sessionResult.success) {
+            return res.status(500).json({ error: 'Failed to create session', details: sessionResult.error });
+        }
+
+        res.json({
+            success: true,
+            sessionId: sessionResult.data.id,
+            sessionToken: sessionResult.data.session_token,
+            userId: userResult.data.id
+        });
+    } catch (error) {
+        console.error('Error starting interview:', error);
+        res.status(500).json({ error: 'Failed to start interview', message: error.message });
+    }
+});
+
+// Save question response and get evaluation
 app.post('/api/evaluate', async (req, res) => {
     try {
-        const { question, answer } = req.body;
+        const { 
+            question, 
+            answer, 
+            sessionId, 
+            questionIndex, 
+            transcriptText, 
+            audioDuration, 
+            responseTime 
+        } = req.body;
         
         if (!question || !answer) {
             return res.status(400).json({ 
@@ -135,7 +188,7 @@ Be honest and constructive. Poor answers should receive low scores.`;
                 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
             },
             body: JSON.stringify({
-                model: "meta-llama/llama-3.1-70b-versatile",
+                model: "llama-3.3-70b-versatile",
                 messages: [
                     {
                         role: "user",
@@ -173,6 +226,23 @@ Be honest and constructive. Poor answers should receive low scores.`;
             // Ensure score is within valid range
             evaluation.overall = Math.max(1.0, Math.min(5.0, parseFloat(evaluation.overall)));
 
+            // Save to database if sessionId provided
+            if (sessionId && questionIndex !== undefined) {
+                await DatabaseService.saveQuestionResponse({
+                    sessionId,
+                    questionIndex,
+                    questionText: question,
+                    userAnswer: answer,
+                    transcriptText,
+                    audioDuration,
+                    responseTime,
+                    evaluationScore: evaluation.overall,
+                    evaluationFeedback: evaluation.feedback,
+                    evaluationStrengths: evaluation.strengths,
+                    evaluationImprovements: evaluation.improvements
+                });
+            }
+
             res.json(evaluation);
         } catch (parseError) {
             console.error('Failed to parse AI response:', parseError);
@@ -191,12 +261,31 @@ Be honest and constructive. Poor answers should receive low scores.`;
                 fallbackImprovements = ["Prepare better for the interview", "Research common interview questions", "Provide alternative approaches or related experience"];
             }
 
-            res.json({
+            const fallbackEvaluation = {
                 overall: fallbackScore,
                 feedback: fallbackFeedback,
                 strengths: fallbackStrengths,
                 improvements: fallbackImprovements
-            });
+            };
+
+            // Save fallback evaluation to database if sessionId provided
+            if (sessionId && questionIndex !== undefined) {
+                await DatabaseService.saveQuestionResponse({
+                    sessionId,
+                    questionIndex,
+                    questionText: question,
+                    userAnswer: answer,
+                    transcriptText,
+                    audioDuration,
+                    responseTime,
+                    evaluationScore: fallbackEvaluation.overall,
+                    evaluationFeedback: fallbackEvaluation.feedback,
+                    evaluationStrengths: fallbackEvaluation.strengths,
+                    evaluationImprovements: fallbackEvaluation.improvements
+                });
+            }
+
+            res.json(fallbackEvaluation);
         }
 
     } catch (error) {
@@ -205,6 +294,128 @@ Be honest and constructive. Poor answers should receive low scores.`;
             error: 'Failed to evaluate response',
             message: error.message 
         });
+    }
+});
+
+// Complete interview session
+app.post('/api/interview/complete', async (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        
+        if (!sessionId) {
+            return res.status(400).json({ error: 'Session ID is required' });
+        }
+
+        const result = await DatabaseService.completeInterviewSession(sessionId);
+        
+        if (!result.success) {
+            return res.status(500).json({ error: 'Failed to complete session', details: result.error });
+        }
+
+        res.json({ success: true, session: result.data });
+    } catch (error) {
+        console.error('Error completing interview:', error);
+        res.status(500).json({ error: 'Failed to complete interview', message: error.message });
+    }
+});
+
+// Get user performance
+app.get('/api/user/:userId/performance', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        const result = await DatabaseService.getUserPerformance(userId);
+        
+        if (!result.success) {
+            return res.status(500).json({ error: 'Failed to get performance', details: result.error });
+        }
+
+        res.json({ success: true, performance: result.data });
+    } catch (error) {
+        console.error('Error getting user performance:', error);
+        res.status(500).json({ error: 'Failed to get user performance', message: error.message });
+    }
+});
+
+// Get user interview history
+app.get('/api/user/:userId/history', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { limit = 10 } = req.query;
+        
+        const result = await DatabaseService.getUserInterviewHistory(userId, parseInt(limit));
+        
+        if (!result.success) {
+            return res.status(500).json({ error: 'Failed to get history', details: result.error });
+        }
+
+        res.json({ success: true, history: result.data });
+    } catch (error) {
+        console.error('Error getting user history:', error);
+        res.status(500).json({ error: 'Failed to get user history', message: error.message });
+    }
+});
+
+// Get session details
+app.get('/api/session/:sessionId', async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        
+        const sessionResult = await DatabaseService.getInterviewSession(sessionId);
+        const responsesResult = await DatabaseService.getSessionResponses(sessionId);
+        
+        if (!sessionResult.success) {
+            return res.status(404).json({ error: 'Session not found', details: sessionResult.error });
+        }
+
+        res.json({ 
+            success: true, 
+            session: sessionResult.data,
+            responses: responsesResult.success ? responsesResult.data : []
+        });
+    } catch (error) {
+        console.error('Error getting session details:', error);
+        res.status(500).json({ error: 'Failed to get session details', message: error.message });
+    }
+});
+
+// Get analytics dashboard data
+app.get('/api/analytics/questions', async (req, res) => {
+    try {
+        const result = await DatabaseService.getQuestionAnalytics();
+        
+        if (!result.success) {
+            return res.status(500).json({ error: 'Failed to get analytics', details: result.error });
+        }
+
+        res.json({ success: true, analytics: result.data });
+    } catch (error) {
+        console.error('Error getting question analytics:', error);
+        res.status(500).json({ error: 'Failed to get question analytics', message: error.message });
+    }
+});
+
+// Record performance metric
+app.post('/api/analytics/metric', async (req, res) => {
+    try {
+        const { userId, sessionId, metricName, metricValue, metricData } = req.body;
+        
+        if (!userId || !sessionId || !metricName || metricValue === undefined) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        const result = await DatabaseService.recordPerformanceMetric(
+            userId, sessionId, metricName, metricValue, metricData
+        );
+        
+        if (!result.success) {
+            return res.status(500).json({ error: 'Failed to record metric', details: result.error });
+        }
+
+        res.json({ success: true, metric: result.data });
+    } catch (error) {
+        console.error('Error recording performance metric:', error);
+        res.status(500).json({ error: 'Failed to record metric', message: error.message });
     }
 });
 

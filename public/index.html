@@ -335,13 +335,19 @@
                 <div class="camera-preview" id="cameraPreview">
                     <div>
                         <div class="icon">📷</div>
-                        <p>Requesting camera access...</p>
-                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">Please allow camera and microphone permissions
+                        <p>Requesting media access...</p>
+                        <p style="font-size: 0.8rem; margin-top: 0.5rem;">Microphone is required, camera is optional and disabled by default
                         </p>
                     </div>
                 </div>
                 <div class="status">
                     <p id="cameraStatus">Status: Initializing...</p>
+                    <div style="margin-top: 10px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" id="cameraToggle" style="margin-right: 8px;">
+                            <span>Enable Camera</span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -350,10 +356,25 @@
 
                 <!-- Welcome State -->
                 <div id="welcomeState" class="interview-state">
+                    <!-- User Info Section -->
+                    <div class="user-info-section" style="margin-bottom: 2rem;">
+                        <h4 style="color: #3b82f6; margin-bottom: 1rem;">👤 Optional: Tell us about yourself</h4>
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                            <input type="text" id="userName" placeholder="Your Name (optional)" 
+                                   style="flex: 1; padding: 0.75rem; border: 1px solid #374151; border-radius: 0.5rem; background: #1f2937; color: white; font-size: 1rem;">
+                            <input type="email" id="userEmail" placeholder="Your Email (optional)" 
+                                   style="flex: 1; padding: 0.75rem; border: 1px solid #374151; border-radius: 0.5rem; background: #1f2937; color: white; font-size: 1rem;">
+                        </div>
+                        <p style="font-size: 0.875rem; color: #9ca3af;">
+                            Providing your details helps us track your progress across sessions. You can also proceed anonymously.
+                        </p>
+                    </div>
+                    
                     <div class="status">
                         <p>Ready to begin your AI interview simulation</p>
                         <p style="font-size: 0.9rem; color: #9ca3af; margin-top: 0.5rem;">The AI will ask you questions
                             and evaluate your responses in real-time</p>
+                        <p style="font-size: 0.8rem; color: #f59e0b; margin-top: 0.5rem;"> микроphone is required, camera is optional</p>
                     </div>
                     <button id="startInterviewBtn" class="button success" disabled style="opacity: 0.5;">🚀 Start
                         Interview</button>
