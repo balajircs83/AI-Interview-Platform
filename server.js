@@ -446,12 +446,15 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`🚀 AI Interview Platform Server running on port ${PORT}`);
-    console.log(`📱 Frontend: http://localhost:${PORT}`);
-    console.log(`🔧 Health Check: http://localhost:${PORT}/health`);
-    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
-
+// Vercel serverless function export
 module.exports = app;
+
+// For local development, start the server
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`🚀 AI Interview Platform Server running on port ${PORT}`);
+        console.log(`📱 Frontend: http://localhost:${PORT}`);
+        console.log(`🔧 Health Check: http://localhost:${PORT}/health`);
+        console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+}
